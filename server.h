@@ -27,7 +27,7 @@ private:
 
     void do_session(boost::asio::ip::tcp::socket socket);
 
-    void parse(const std::string &line);
+    std::string parse(const std::string &line);
 };
 
 #endif //EGLUE_SERVER_SERVER_H

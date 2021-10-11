@@ -29,9 +29,9 @@ void server::do_session(tcp::socket socket) {
 
             std::cerr << line << std::endl; //TODO: strip this
 
-            parse(line);
+            std::string answer = parse(line);
 
-            ws.write(buffer.data());
+            ws.write(net::buffer(std::string(answer)));
         } while (true);
     }
     catch (beast::system_error const &se) {
@@ -43,19 +43,26 @@ void server::do_session(tcp::socket socket) {
     }
 }
 
-void server::parse(const std::string &line) {
+std::string server::parse(const std::string &line) {
     std::istringstream iss(line);
     std::vector<std::string> results((std::istream_iterator<std::string>(iss)),
                                      std::istream_iterator<std::string>());
+    int err = 0;
+
     if (results[0] == "LOAD") {
-        l.load_resource(results[1]);
+        err = l.load_resource(results[1]);
+        return std::to_string(err) + "\n";
     } else if (results[0] == "GET") {
-        l.get_value(results[1]);
+        err = l.get_value(results[1]);
         std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+        return std::to_string(err) + " " + l.value + "\n";
     } else if (results[0] == "SET") {
-        l.set_value(results[1], results[2]);
+        err = l.set_value(results[1], results[2]);
         l.get_value(results[1]);
         std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+        return std::to_string(err) + "\n";
+    } else {
+        return "127\n";
     }
 }
 
