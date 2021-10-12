@@ -54,18 +54,22 @@ std::string server::parse(const std::string &line) {
         return std::to_string(err) + "\n";
     } else if (results[0] == "GET") {
         err = l.get_value(results[1]);
-        std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+        if (!err) {
+            std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+            return std::to_string(err) + " " + l.value + "\n";
+        }
         return std::to_string(err) + " " + l.value + "\n";
     } else if (results[0] == "SET") {
         err = l.set_value(results[1], results[2]);
-        l.get_value(results[1]);
-        std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+        if (!err) {
+            l.get_value(results[1]);
+            std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+        }
         return std::to_string(err) + "\n";
     } else {
         return "127\n";
     }
 }
-
 
 server::server() {
 
