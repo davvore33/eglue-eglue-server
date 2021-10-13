@@ -1,5 +1,4 @@
 #include "my_server.h"
-#include <signal.h>
 
 std::mutex my_mutex;
 
@@ -21,7 +20,7 @@ private:
 
 context my_context;
 
-void my_server::do_session(tcp::socket socket, const context *my_context) {
+void my_server::do_session(tcp::socket socket, const context *in_context) {
     try {
         websocket::stream<tcp::socket> ws{std::move(socket)};
         ws.set_option(websocket::stream_base::decorator(
@@ -32,7 +31,7 @@ void my_server::do_session(tcp::socket socket, const context *my_context) {
                 }));
         ws.accept();
 
-        int value = false;
+        int quit = false;
         do {
             boost::asio::streambuf buffer;
             ws.read(buffer);
@@ -49,8 +48,8 @@ void my_server::do_session(tcp::socket socket, const context *my_context) {
 
             ws.write(net::buffer(std::string(answer)));
 
-            my_context->get(value);
-        } while (!value);
+            in_context->get(quit);
+        } while (!quit);
 
 //      Received SIGINT we proceed to clean stream and socket resources
         ws.close(boost::beast::websocket::close_code::normal);
@@ -108,21 +107,26 @@ my_server::my_server() {
         net::io_context ioc{1};
         tcp::acceptor acceptor{ioc, {address, port}};
 
+        int quit = false;
         do {
             tcp::socket socket{ioc};
             acceptor.accept(socket);
             std::thread(
                     &my_server::do_session, this,
                     std::move(socket), &my_context).detach();
-        } while (true);
+            my_context.get(quit);
+        } while (!quit);
     }
     catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        throw EXIT_FAILURE;
+        throw e;
     }
 }
 
-void my_server::my_kill(int sig_num) {
-    std::cerr << "Server received " << sig_num << std::endl;
+
+void my_server::signalHandler(int signum) {
+    std::cout << "Interrupt signal (" << signum << ") received.\n";
+
     my_context.set(true);
+    exit(0);
 }

@@ -22,6 +22,7 @@ using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 #include <string>
 #include <thread>
 #include <mutex>
+#include <csignal>
 #include "library.h"
 
 class context;
@@ -32,11 +33,11 @@ public:
 
     ~my_server() {};
 
-    static void my_kill(int sig_num);
+    static void signalHandler(int signum);
 
 private:
 
-    void do_session(tcp::socket socket, const context *my_context);
+    void do_session(tcp::socket socket, const context *in_context);
 
     std::string parse(const std::string &line);
 
