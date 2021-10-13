@@ -1,4 +1,5 @@
 #include "my_server.h"
+#include <boost/log/trivial.hpp>
 
 std::mutex my_mutex;
 
@@ -42,7 +43,7 @@ void my_server::do_session(tcp::socket socket, const context *in_context) {
                     boost::asio::buffers_begin(bufs),
                     boost::asio::buffers_begin(bufs) + n);
 
-            std::cerr << line << std::endl; //TODO: strip this
+            BOOST_LOG_TRIVIAL(info) << line;
 
             std::string answer = parse(line);
 
@@ -56,12 +57,12 @@ void my_server::do_session(tcp::socket socket, const context *in_context) {
         socket.close();
         return;
     }
-    catch (beast::system_error const &se) {
-        if (se.code() != websocket::error::closed)
-            std::cerr << "Error: " << se.code().message() << std::endl;
+    catch (beast::system_error const &e) {
+        if (e.code() != websocket::error::closed)
+            BOOST_LOG_TRIVIAL(error) << "Error " << e.what() << ": " << e.code().message();
     }
     catch (std::exception const &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        BOOST_LOG_TRIVIAL(error) << "Error " << e.what();
     }
 }
 
@@ -77,7 +78,7 @@ std::string my_server::parse(const std::string &line) {
     } else if (results[0] == "GET") {
         err = m_loader.get_value(results[1]);
         if (!err) {
-            std::cerr << "returned value : " << m_loader.value << std::endl;//TODO: strip this
+            BOOST_LOG_TRIVIAL(info) << "returned value : " << m_loader.value;
             return std::to_string(err) + " " + m_loader.value + "\n";
         }
         return std::to_string(err) + " " + m_loader.value + "\n";
@@ -85,7 +86,7 @@ std::string my_server::parse(const std::string &line) {
         err = m_loader.set_value(results[1], results[2]);
         if (!err) {
             m_loader.get_value(results[1]);
-            std::cerr << "returned value : " << m_loader.value << std::endl;//TODO: strip this
+            BOOST_LOG_TRIVIAL(info) << "returned value : " << m_loader.value;
         }
         return std::to_string(err) + "\n";
     } else {
@@ -118,14 +119,14 @@ my_server::my_server() {
         } while (!quit);
     }
     catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        BOOST_LOG_TRIVIAL(error) << "Error " << e.what();
         throw e;
     }
 }
 
 
 void my_server::signalHandler(int signum) {
-    std::cout << "Interrupt signal (" << signum << ") received.\n";
+    BOOST_LOG_TRIVIAL(info) << "Interrupt signal " << signum << " received.";
 
     my_context.set(true);
     exit(0);
