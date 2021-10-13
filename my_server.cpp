@@ -1,12 +1,27 @@
-#include "server.h"
+#include "my_server.h"
+#include <signal.h>
 
-namespace beast = boost::beast;         // from <boost/beast.hpp>
-namespace http = beast::http;           // from <boost/beast/http.hpp>
-namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
-namespace net = boost::asio;            // from <boost/asio.hpp>
-using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+std::mutex my_mutex;
 
-void server::do_session(tcp::socket socket) {
+struct context {
+public:
+    void get(int &out) const {
+        std::lock_guard<std::mutex> guard(my_mutex);
+        out = stop;
+    }
+
+    void set(bool in) {
+        std::lock_guard<std::mutex> guard(my_mutex);
+        stop = in;
+    }
+
+private:
+    bool stop = false;
+};
+
+context my_context;
+
+void my_server::do_session(tcp::socket socket, const context *my_context) {
     try {
         websocket::stream<tcp::socket> ws{std::move(socket)};
         ws.set_option(websocket::stream_base::decorator(
@@ -17,6 +32,7 @@ void server::do_session(tcp::socket socket) {
                 }));
         ws.accept();
 
+        int value = false;
         do {
             boost::asio::streambuf buffer;
             ws.read(buffer);
@@ -32,7 +48,14 @@ void server::do_session(tcp::socket socket) {
             std::string answer = parse(line);
 
             ws.write(net::buffer(std::string(answer)));
-        } while (true);
+
+            my_context->get(value);
+        } while (!value);
+
+//      Received SIGINT we proceed to clean stream and socket resources
+        ws.close(boost::beast::websocket::close_code::normal);
+        socket.close();
+        return;
     }
     catch (beast::system_error const &se) {
         if (se.code() != websocket::error::closed)
@@ -43,27 +66,27 @@ void server::do_session(tcp::socket socket) {
     }
 }
 
-std::string server::parse(const std::string &line) {
+std::string my_server::parse(const std::string &line) {
     std::istringstream iss(line);
     std::vector<std::string> results((std::istream_iterator<std::string>(iss)),
                                      std::istream_iterator<std::string>());
     int err = 0;
 
     if (results[0] == "LOAD") {
-        err = l.load_resource(results[1]);
+        err = m_loader.load_resource(results[1]);
         return std::to_string(err) + "\n";
     } else if (results[0] == "GET") {
-        err = l.get_value(results[1]);
+        err = m_loader.get_value(results[1]);
         if (!err) {
-            std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
-            return std::to_string(err) + " " + l.value + "\n";
+            std::cerr << "returned value : " << m_loader.value << std::endl;//TODO: strip this
+            return std::to_string(err) + " " + m_loader.value + "\n";
         }
-        return std::to_string(err) + " " + l.value + "\n";
+        return std::to_string(err) + " " + m_loader.value + "\n";
     } else if (results[0] == "SET") {
-        err = l.set_value(results[1], results[2]);
+        err = m_loader.set_value(results[1], results[2]);
         if (!err) {
-            l.get_value(results[1]);
-            std::cerr << "returned value : " << l.value << std::endl;//TODO: strip this
+            m_loader.get_value(results[1]);
+            std::cerr << "returned value : " << m_loader.value << std::endl;//TODO: strip this
         }
         return std::to_string(err) + "\n";
     } else {
@@ -71,9 +94,11 @@ std::string server::parse(const std::string &line) {
     }
 }
 
-server::server() {
+my_server::my_server() {
 
-    l = Loader();
+    m_loader = Loader();
+    my_context = context();
+    my_context.set(false);
 
     try {
         auto const address = net::ip::make_address(
@@ -87,12 +112,17 @@ server::server() {
             tcp::socket socket{ioc};
             acceptor.accept(socket);
             std::thread(
-                    &server::do_session, this,
-                    std::move(socket)).detach();
+                    &my_server::do_session, this,
+                    std::move(socket), &my_context).detach();
         } while (true);
     }
     catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         throw EXIT_FAILURE;
     }
+}
+
+void my_server::my_kill(int sig_num) {
+    std::cerr << "Server received " << sig_num << std::endl;
+    my_context.set(true);
 }

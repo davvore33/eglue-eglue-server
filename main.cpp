@@ -1,6 +1,7 @@
-#include "server.h"
+#include "my_server.h"
 
 int main() {
-    server s = server();
+    my_server s = my_server();
+    signal(SIGINT, my_server::my_kill);
     return 0;
 }

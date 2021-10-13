@@ -6,7 +6,7 @@ project(eglue_server
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(eglue_server main.cpp server.cpp server.h)
+add_executable(eglue_server main.cpp my_server.cpp my_server.h)
 
 target_include_directories(eglue_server PRIVATE "lib/eglue-lib")
 add_library(eglue-lib SHARED IMPORTED)
